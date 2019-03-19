@@ -1,0 +1,198 @@
+package ps3;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.PriorityQueue;
+
+public class HuffmanTest {
+	/* returns a hashmap of character frequency
+	 * if it finds the char, increments frequency
+	 * @return map of frequencies
+	 * @throws IOException
+	 */
+	public static Map<Character, Integer> frequencyTable(String Name) throws IOException{
+		Map<Character, Integer> frequency = new HashMap<Character, Integer>();
+		BufferedReader input = new BufferedReader(new FileReader(Name));
+		try {
+			int next = input.read();
+			while(next != -1) { //when next = -1, reaches end of file
+				if(!frequency.containsKey((char) next)) { //if it doesn't finds the character, add to map with frequency of 1					
+					frequency.put((char) next, 1);
+				}
+				else { //if it does already exist, increment frequency 
+					frequency.put((char) next, frequency.get((char) next)+1);
+				}
+				next = input.read();
+			}
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			System.out.println("File not found");
+			e.printStackTrace();
+		}
+
+		finally {
+			input.close(); 
+		}
+		return frequency;
+	}
+	/**
+	 * creates tree using continuously the first and second Trees in the priority queue
+	 * new tree created that has no character and value is the sum of both trees, and left and right branches are T1 and T2
+	 * Keep combining trees until only one massive one remains
+	 * @param queuedTrees
+	 * @return queuedTrees.peek() which will return the massive tree
+	 */
+	public static Tree treeCreator(PriorityQueue<Tree> queuedTrees) {
+		while(queuedTrees.size()> 1 ) {
+			Tree tree1 = queuedTrees.poll();
+			Tree tree2 = queuedTrees.poll();
+			// Join the two new trees
+			Tree combine = new Tree(null, tree1.getValue()+tree2.getValue(), tree1, tree2); 
+			queuedTrees.add(combine);
+		}
+		return queuedTrees.peek(); //return tree
+	}
+	
+	public static PriorityQueue<Tree> initializePriorityQueue(Map<Character, Integer> frequency){
+		PriorityQueue<Tree> prioritized = new PriorityQueue<Tree>(new TreeComparator());
+		// read through every frequency character and initialize a new tree for each
+		for(Character charr : frequency.keySet()) { 
+			Tree tree = new Tree(charr, frequency.get(charr));
+			prioritized.add(tree);
+		}
+		return prioritized;
+	}
+	
+	/**
+	 * helper function
+	 * recursively calls itself
+	 * @param tree
+	 * @param keeps track of code for char
+	 * @return map with all codes and characters
+	 */
+	public static Map<Character,String> compressonator(Tree tree, String code){
+		Map<Character,String> map = new HashMap<Character,String>();
+		if(tree==null) return map; // if tree is empty, return an empty  map
+		if(tree.hasLeft()) map.putAll(compressonator(tree.getLeft(),code+"0"));
+		if(tree.hasRight()) map.putAll(compressonator(tree.getRight(),code+"1"));
+		if(tree.isLeaf()) map.put(tree.getKey(),code+"");
+		return map;
+	}
+	/**
+	 * @param inPath
+	 * @param outPath
+	 * @param codeMap
+	 * @throws IOException
+	 * To compress, we repeatedly read the next character in your text file,
+	 * look up its code word in the code map,
+	 * and then write the sequence of 0's and 1's in that code word as bits to an output file.
+	*/
+
+	public static void compress(String inPath, String outPath, Map<Character,String> codeMap) throws IOException{
+		BufferedReader input = new BufferedReader(new FileReader(inPath));
+		BufferedBitWriter bitOutput = new BufferedBitWriter(outPath);
+		try { 
+			int current = input.read();
+			while(current!=-1) { //until it reaches the end of the file
+				String currChars = codeMap.get((char)current);
+				for(char i : currChars.toCharArray()) {
+					boolean h = (i=='1');
+					bitOutput.writeBit(h); 
+				current = input.read();
+			}
+			}
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			System.out.println("File not found");
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		finally {
+			input.close();
+			bitOutput.close();
+		}
+	}
+
+	/**
+	 * reads through the compressed file and decompress it 
+	 * @param inPath
+	 * @param outPath
+	 * @param tree
+	 * @throws IOException
+	 */
+	public static void decompress(String inPath, String outPath, Tree tree) throws IOException{
+		BufferedBitReader bitInput = new BufferedBitReader(inPath);
+		BufferedWriter output = new BufferedWriter(new FileWriter(outPath)); 
+		boolean bit = false;
+		Tree decompress = tree; 
+		try { 
+			if(tree!=null) { 
+				
+				bit = bitInput.readBit();
+				
+				while(bitInput.hasNext()) { //runs until the end of the file
+					decompress = tree;
+					while(!decompress.isLeaf() && bitInput.hasNext()) {
+						if(bit) decompress = decompress.getRight();
+						if(!bit) decompress = decompress.getLeft();
+						bit = bitInput.readBit();
+					}
+					if(bitInput.hasNext())output.write((char)decompress.getKey()); //stop reading at the end
+				}
+				// checks for last leaves on right then left and writes key in output if they are a character
+				if(bit) decompress = decompress.getRight(); 
+				else decompress = decompress.getLeft();
+				if(decompress!=null)output.write((char)decompress.getKey());
+			}
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			System.out.println("File not found");
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		finally {
+			bitInput.close();
+			output.close();
+		}
+	}
+	public static void main(String[] args) throws IOException {
+//		String inPath = "src/PS3/test";
+//		String compressedPath = "src/PS3/testCompressed.txt";
+//		String outPath = "src/PS3/testUncompressed.txt";
+//		
+		
+		String inPath = "src/PS3/USConstitution.txt";
+		String compressedPath = "src/PS3/USConstitutionCompressed.txt";
+		String outPath = "src/PS3/USConstitutionUncompressed.txt";
+//		String inPath = "src/ps3/WarAndPeace.txt";
+//		String compressedPath = "src/ps3/WarAndPeaceCompressed.txt";
+//		String outPath = "src/ps3/WarAndPeaceUncompressed.txt";
+		try {
+			Tree tree = treeCreator(initializePriorityQueue(frequencyTable(inPath)));
+			compress(inPath, compressedPath, compressonator(tree, ""));
+			decompress(compressedPath, outPath, tree);
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			System.out.println("File not found");
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+}
+
+
