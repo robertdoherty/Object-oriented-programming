@@ -1,0 +1,308 @@
+package ps5;
+
+/* @author Robert Doherty and Charles Chen, 19W
+ * 
+ */
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.*;
+
+public class Viterbi {
+	HashMap<String, HashMap<String, Double>> transitionScore;
+	HashMap<String, HashMap<String, Double>> observationScore;
+	ArrayList<String> words; // list of words from train sentence file
+	ArrayList<String> obs; // list of parts of speech from train tag file
+	ArrayList<String> testwords; // list of words from test sentence file
+	ArrayList<String> testobs; // list of parts of speech from test tag file
+	
+	// Performs viterbi algorithm given train sentences/tags and test sentences/tags
+	public Viterbi (String trainsentences, String traintags, String testsentences, String testtags) throws IOException {
+		words = new ArrayList<String>();
+		// add all words from train file
+		BufferedReader in = new BufferedReader(new FileReader(trainsentences));
+		String line;
+		while ((line = in.readLine()) != null) {
+			String[] toAdd = line.split(" ");
+			for (String i : toAdd) {
+				words.add(i);
+			}
+		}
+		//System.out.println(words);
+		in.close();
+		// add all tags from train file
+		obs = new ArrayList<String>();
+		in = new BufferedReader(new FileReader(traintags));
+		String line2;
+		while ((line2 = in.readLine()) != null) {
+			String[] toAdd2 = line2.split(" ");
+			for (String i : toAdd2) {
+				obs.add(i);
+			}
+		}
+		in.close();
+		
+		// add all words from test file
+		testwords = new ArrayList<String>();
+		in = new BufferedReader(new FileReader(testsentences));
+		String line3;
+		while ((line3 = in.readLine()) != null) {
+			String[] toAdd2 = line3.split(" ");
+			for (String i : toAdd2) {
+				testwords.add(i);
+			}
+		}
+		in.close();
+		
+		// add all tags from train file
+		testobs = new ArrayList<String>();
+		in = new BufferedReader(new FileReader(testtags));
+		String line4;
+		while ((line4 = in.readLine()) != null) {
+			String[] toAdd2 = line4.split(" ");
+			for (String i : toAdd2) {
+				testobs.add(i);
+			}
+		}
+		in.close();
+		
+		
+		generateobservationScore(); // create HashMap for observationScore
+		generatetransitionScore(); // create HashMap for transitionScore
+		System.out.println(transitionScore);
+		System.out.println(observationScore);
+		viterbiAlgorithm();	
+		}
+	
+	public Viterbi() throws Exception {
+		ScannerInterface();
+	}
+	private void generateobservationScore() {
+		observationScore = new HashMap<String, HashMap<String, Double>>();
+		for (Integer i = 0 ; i < words.size(); i++) {
+			if (observationScore.containsKey(words.get(i))) {
+				if (observationScore.get(words.get(i)).containsKey(obs.get(i))) {
+					observationScore.get(words.get(i)).put(obs.get(i), observationScore.get(words.get(i)).get(obs.get(i)) + 1);
+				}
+				else {
+					observationScore.get(words.get(i)).put(obs.get(i), (double) 1);
+				}
+			}
+			else {
+				HashMap<String, Double> toAdd= new HashMap<String, Double>();
+				toAdd.put(obs.get(i), (double) 1);
+				observationScore.put(words.get(i), toAdd);
+			}
+		}
+		for (String state: observationScore.keySet()) {
+			Double sum = 0.0;
+			for (String observation : observationScore.get(state).keySet()) {
+				sum += observationScore.get(state).get(observation);
+			}
+			for (String observation : observationScore.get(state).keySet()) {
+				observationScore.get(state).put(observation, java.lang.Math.log(observationScore.get(state).get(observation)/sum));
+			}
+		}
+		
+	}
+	
+	private void generatetransitionScore() {
+		transitionScore = new HashMap<String, HashMap<String, Double>>();
+		String prev = "\n"
+				+ "";
+		Integer i = 0;
+		
+		while (i < obs.size()){// loop through all the tags
+			String current = obs.get(i);
+//			if start of a new sentence, add transitions from start to first part of speech of next line
+			if (prev.equals("\n")) {
+				if (transitionScore.containsKey("START")) {
+					if (transitionScore.get("START").containsKey(current)) {
+						transitionScore.get("START").put(current, transitionScore.get("START").get(current) + 1);
+					}
+					else {
+						transitionScore.get("START").put(current, (double) 1);
+					}
+				}
+				else {
+					HashMap<String, Double> toAdd= new HashMap<String, Double>();
+					toAdd.put(current, (double) 1);
+					transitionScore.put("START", toAdd);
+				}
+			}
+			else {
+// 			add all the other transitions score
+				if (transitionScore.containsKey(prev)) {
+					if (transitionScore.get(prev).containsKey(current)) {
+						transitionScore.get(prev).put(current, transitionScore.get(prev).get(current) + 1);
+					}
+					else {
+						transitionScore.get(prev).put(current, (double) 1);
+					}
+				}
+				else {
+					HashMap<String, Double> toAdd= new HashMap<String, Double>();
+					toAdd.put(current, (double) 1);
+					transitionScore.put(prev, toAdd);
+				}
+			}
+			prev = obs.get(i);
+
+			i += 1;
+		}
+		// loop through all transition scores
+		for (String state: transitionScore.keySet()) {
+			Double sum = 0.0;
+			// find total sum of each observation in transition map
+			for (String observation : transitionScore.get(state).keySet()) {
+				sum += transitionScore.get(state).get(observation);
+			}
+			for (String observation : transitionScore.get(state).keySet()) {
+				// find 
+				transitionScore.get(state).put(observation, java.lang.Math.log(transitionScore.get(state).get(observation)/sum));
+			}
+		}
+	}
+	// Read through all observations and go through graph starting at start finding best path based on best score
+	private void viterbiAlgorithm() {
+		HashMap<String, Double> currStates =  new HashMap<String, Double>();
+		ArrayList<HashMap<String, String>> traceMap = new ArrayList<HashMap<String, String>>();
+		String currState = "START";
+		String bestPoint = null;
+		Double bestInteger = (double) -1000000;
+		Integer bestIndex = null;
+		currStates.put(currState, (double) 0);
+		Integer n = 0;
+		// loop through all test observations 
+		for (String word: testwords) {
+			HashMap<String, Double> nextStates = new HashMap<String, Double>();
+			
+			Double nextScore = (double) 0;
+			Double obsScore = (double) -100; // set observation score to be -100 assuming we do not see it
+			HashMap<String, String> toAdd = new HashMap<String, String>();
+			for (String state: currStates.keySet()) {
+				currState = state;
+				if (transitionScore.containsKey(currState)) {
+				for (String next: transitionScore.get(currState).keySet()) {
+					
+					if (!observationScore.containsKey(word)) obsScore = -100.0; // if word is not in trainer file give it a score of -100
+					// if next state contains observation, set observation score to that value
+					else if (observationScore.get(word).containsKey(next)) obsScore =  observationScore.get(word).get(next); 
+					nextScore = currStates.get(currState) + transitionScore.get(currState).get(next) + obsScore;
+//					System.out.println("obs: " + word + "    current state: " + state + "   next State: " +next + "   score:"+ nextScore);
+					//if nextStates does not have next state or the score of next state is bigger than the previous one
+					if (!nextStates.containsKey(next) || nextStates.get(next) < nextScore) { 
+						nextStates.put(next, nextScore); // add next state and its score to the map
+						toAdd.put(next, currState); 
+					// if next score is a bigger value or it is for a later word(observation)
+					if (nextScore > bestInteger || bestIndex< n) {
+						bestPoint = next; // update bestPoint value
+						bestIndex = n; // update index of last best score
+						bestInteger = nextScore; // update nextScore value
+					}
+					}
+					obsScore = (double) -100;
+				}
+				}				
+			}
+			currStates = nextStates;
+			traceMap.add(toAdd);
+			n++;
+			
+		}
+		// Create backtrace list and loop through traceMap to find the path from the best point
+		// (i.e. point with highest score on last observation)
+		ArrayList<String> backtrace = new ArrayList<String>();
+		backtrace.add(bestPoint);
+		for (Integer i = traceMap.size()-1; i >= 1; i --) {
+			bestPoint = traceMap.get(i).get(bestPoint);
+			backtrace.add(bestPoint);			
+		}
+
+		Double total = (double)(backtrace.size());
+		Double correct = 0.0;
+		Double incorrect= 0.0;
+		// go through backtrace and the test observation and increment correct when their values match 
+		// and increment incorrect when they don't 
+		for (Integer k = 0; k <= backtrace.size()-1 ; k++) {
+			String a = backtrace.get(k).strip();
+//			System.out.println(a);
+			String b = testobs.get(testobs.size()-k-1).strip();
+//			System.out.println(b);
+			if (a.equals(b)) {
+				correct += 1;
+			}
+			else {
+				incorrect += 1;
+			}
+//			System.out.println(k);
+//			System.out.println("--------------");
+			
+		}
+		System.out.println("Percent Correct: " + correct/total *100);
+		System.out.println("correct " + correct+ "    incorrect "+ incorrect);
+	}
+	
+	//scanner for console input
+	private void ScannerInterface() throws Exception{
+		//initalizes all necessary variables
+		words = new ArrayList<String>();
+		obs = new ArrayList<String>();
+		testobs = new ArrayList<String>();
+		testwords = new ArrayList<String>();
+		
+		//start scanner
+		Scanner in = new Scanner(System.in);
+
+		//takes a training sentence, splits into array and adds to words
+		System.out.print("Enter a training sentence\n");
+
+		String line = in.nextLine();
+		String[] toAdd = line.split(" ");
+		for (String i : toAdd) {
+			words.add(i);
+		}
+		System.out.print(words);
+
+		//takes a training tag, splits into array and adds to obs
+		System.out.print("Enter a collecton of training tags\n");
+		line = in.nextLine();
+		toAdd = line.split(" ");
+		for (String i : toAdd) {
+			obs.add(i);
+		}
+		System.out.print(obs);
+		
+		//takes a test sentence, splits into array and adds to testwords
+		System.out.print("Enter a test sentence\n");
+		line = in.nextLine();
+		toAdd = line.split(" ");
+		for (String i : toAdd) {
+			testwords.add(i);
+		}
+		System.out.print(testwords);
+		
+		//takes a tag sentence, splits into array and adds to testobs
+		System.out.print("Enter a collecton of test tags\n");
+		line = in.nextLine();
+		toAdd = line.split(" ");
+		for (String i : toAdd) {
+			testobs.add(i);
+		}
+		System.out.print(testobs);
+		
+		//generates observation and transition scores and runs viterbi method, also closes input
+		in.close();
+		generateobservationScore();	
+		generatetransitionScore();
+
+		viterbiAlgorithm();
+	}
+	
+	//main method, runs viterbi method on brown files and opens a scanner
+	public static void main(String[] args) throws Exception {
+		Viterbi test = new Viterbi("src/ps5/brown-train-sentences.txt","src/ps5/brown-train-tags.txt","src/ps5/brown-test-sentences.txt","src/ps5/brown-test-tags.txt");
+		Viterbi test2 = new Viterbi();
+	}
+}
